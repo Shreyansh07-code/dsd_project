@@ -6,12 +6,11 @@
 const DEFAULT_URL = "https://tavceheuecenekjuvlqc.supabase.co";
 const DEFAULT_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhdmNlaGV1ZWNlbmVranV2bHFjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg5Mjc5MCwiZXhwIjoyMTA3NDY4NzkwfQ.SJeIZm9QTEm17un5ogRuZdimZsKv6tkVNmBOcUEOpBY";
 
-
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (n) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtTime = (t) => (t ? new Date(t).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "–");
-let sb = null, accounts = [], customers = [], txs = [], alerts = [], query = "";
+let sb = null, accounts = [], customers = [], txs = [], alerts = [], users = [], cases = [], query = "", openCaseId = null, pendingAlert = null;
 const acctLabel = (id) => accounts.find((a) => a.account_id === id)?.account_number ?? `#${id}`;
 const riskOf = (t) => t.risk_assessments?.[0];
 const tone = (cat) => ({ low: "lo", medium: "me", high: "hi", critical: "hi" }[String(cat).toLowerCase()] || "lo");
@@ -58,15 +57,18 @@ async function loadAll() {
     sb.from("accounts").select("account_id, account_number, account_type, account_status, customers(full_name)").order("account_id", { ascending: false }),
     sb.from("transactions").select("transaction_id, source_account_id, destination_account_id, amount, transaction_type, transaction_timestamp, transaction_status, risk_assessments(risk_score, risk_category)").order("transaction_id", { ascending: false }).limit(150),
     sb.from("fraud_alerts").select("alert_id, transaction_id, case_id, alert_priority, alert_status, alert_message, created_at, transactions(amount)").order("alert_id", { ascending: false }).limit(100),
+    sb.from("users").select("user_id, full_name, role").order("full_name"),
+    sb.from("investigation_cases").select("*").order("case_id", { ascending: false }),
   ]);
   const bad = res.find((r) => r.error);
-  if (bad) return toast(bad.error.message, true);
-  [customers, accounts, txs, alerts] = res.map((r) => r.data);
+  if (bad) return toast(dbErr(bad.error), true);
+  [customers, accounts, txs, alerts, users, cases] = res.map((r) => r.data);
   render();
+  if (openCaseId) loadDetail();
 }
 
 /* ---------- render ---------- */
-function render() { renderBubbles(); renderCal(); renderGauge(); renderProgress(); renderList(); renderAccounts(); renderAlerts(); }
+function render() { renderBubbles(); renderCal(); renderGauge(); renderProgress(); renderList(); renderAccounts(); renderAlerts(); renderCases(); }
 
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
@@ -197,6 +199,127 @@ $("acctForm").addEventListener("submit", async (e) => {
   const { error } = await sb.from("accounts").insert({ customer_id: cid, account_number: num, account_type: $("aType").value, account_status: $("aStatus").value });
   if (error) return (err.textContent = error.code === "23505" ? "That account number already exists." : error.message);
   toast("Account opened"); $("aNumber").value = ""; loadAll();
+});
+
+/* ---------- investigations ---------- */
+const dbErr = (e) => (e.code === "42501" ? "Blocked by row-level security. Add a policy that allows this action on the table in Supabase." : e.message);
+const userName = (id) => users.find((u) => u.user_id === id)?.full_name ?? "Unassigned";
+const userOpts = (blank) => (blank ? '<option value="">Unassigned</option>' : "") + users.map((u) => `<option value="${u.user_id}">${esc(u.full_name)} (${esc(u.role)})</option>`).join("");
+
+function renderCases() {
+  const cur = $("actor").value || localStorage.getItem("fw_actor");
+  $("actor").innerHTML = users.length ? userOpts(false) : '<option value="">No users found</option>';
+  if (cur && users.some((u) => u.user_id === cur)) $("actor").value = cur;
+  $("actorNote").textContent = users.length ? "Notes and evidence are saved under this user." : "Add a row to the users table first. Notes and evidence need one.";
+  $("caseAssign").innerHTML = userOpts(true);
+
+  const queue = alerts.filter((a) => !a.case_id && a.alert_status === "New");
+  $("queueCount").textContent = `${queue.length} waiting`;
+  $("queue").innerHTML = queue.length ? queue.map((a) => `<li class="qi"><div class="who"><b>Alert #${a.alert_id} · Txn ${a.transaction_id}</b><small>${a.transactions ? money(a.transactions.amount) : "–"} · ${esc(a.alert_message)}</small></div>
+    <span class="chip ${tone(a.alert_priority)}">${esc(a.alert_priority)}</span>
+    <button class="btn mini dark" data-open="${a.alert_id}">Investigate</button><button class="btn mini ghost" data-dismiss="${a.alert_id}">Dismiss</button></li>`).join("")
+    : '<li class="empty">No alerts waiting. New flagged transactions show up here.</li>';
+
+  $("caseCount").textContent = `${cases.length} total`;
+  $("caseList").innerHTML = cases.length ? cases.map((c) => `<li class="qi${c.case_id === openCaseId ? " on" : ""}" data-case="${c.case_id}" tabindex="0"><div class="who"><b>Case #${c.case_id} · ${esc(c.case_title)}</b><small>${esc(c.case_status)} · ${esc(userName(c.assigned_to))} · ${fmtTime(c.created_at)}</small></div><span class="chip ${tone(c.case_priority)}">${esc(c.case_priority)}</span></li>`).join("")
+    : '<li class="empty">No cases yet. Investigate an alert to open the first one.</li>';
+}
+$("actor").onchange = (e) => localStorage.setItem("fw_actor", e.target.value);
+
+$("queue").addEventListener("click", async (e) => {
+  const o = e.target.closest("[data-open]"), d = e.target.closest("[data-dismiss]");
+  if (o) {
+    const a = alerts.find((x) => x.alert_id === Number(o.dataset.open)); pendingAlert = a;
+    $("caseFor").textContent = `For alert #${a.alert_id} on transaction ${a.transaction_id}`;
+    $("caseTitle").value = `Investigate transaction ${a.transaction_id}`; $("caseDesc").value = a.alert_message;
+    const p = String(a.alert_priority); $("casePrio").value = ["Low", "Medium", "High", "Critical"].includes(p) ? p : "Medium";
+    $("caseError").textContent = ""; $("caseDlg").showModal();
+  }
+  if (d && confirm("Dismiss this alert as a false positive? No case will be opened.")) {
+    const { error } = await sb.from("fraud_alerts").update({ alert_status: "Dismissed" }).eq("alert_id", Number(d.dataset.dismiss));
+    if (error) return toast(dbErr(error), true);
+    toast("Alert dismissed"); loadAll();
+  }
+});
+
+$("caseForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); const err = $("caseError"); err.textContent = "";
+  const title = $("caseTitle").value.trim(); if (!title) return (err.textContent = "Enter a case title.");
+  const btn = $("caseSubmit"); btn.disabled = true;
+  const { data: c, error } = await sb.from("investigation_cases").insert({
+    case_title: title, case_description: $("caseDesc").value.trim() || null, case_priority: $("casePrio").value,
+    case_status: "Open", assigned_to: $("caseAssign").value || null,
+  }).select("case_id").single();
+  if (error) { btn.disabled = false; return (err.textContent = dbErr(error)); }
+  const link = await sb.from("case_transactions").insert({ case_id: c.case_id, transaction_id: pendingAlert.transaction_id, relationship_type: "Flagged transaction" });
+  const upd = await sb.from("fraud_alerts").update({ case_id: c.case_id, alert_status: "Investigating" }).eq("alert_id", pendingAlert.alert_id);
+  btn.disabled = false;
+  if (link.error || upd.error) toast("Case created, but linking failed: " + dbErr(link.error || upd.error), true); else toast(`Case #${c.case_id} opened`);
+  $("caseDlg").close(); openCaseId = c.case_id; await loadAll();
+});
+
+$("caseList").addEventListener("click", (e) => { const li = e.target.closest("[data-case]"); if (li) { openCaseId = Number(li.dataset.case); renderCases(); loadDetail(); } });
+$("caseList").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.click(); });
+
+async function loadDetail() {
+  const id = openCaseId, box = $("caseDetail"), c = cases.find((x) => x.case_id === id);
+  if (!c) { box.hidden = true; return; }
+  box.hidden = false;
+  const [ct, notes, ev] = await Promise.all([
+    sb.from("case_transactions").select("transaction_id, relationship_type, transactions(amount, transaction_type, transaction_status, source_account_id, destination_account_id)").eq("case_id", id),
+    sb.from("investigation_notes").select("note_id, note_text, created_at, users(full_name)").eq("case_id", id).order("created_at", { ascending: false }),
+    sb.from("case_evidence").select("evidence_id, evidence_title, evidence_description, file_path, created_at, users(full_name)").eq("case_id", id).order("created_at", { ascending: false }),
+  ]);
+  const ids = (ct.data || []).map((x) => x.transaction_id);
+  const rules = ids.length ? await sb.from("transaction_rule_matches").select("transaction_id, observed_value, fraud_rules(rule_name, risk_points)").in("transaction_id", ids) : { data: [] };
+  const bad = [ct, notes, ev, rules].find((r) => r.error);
+  if (bad) { box.innerHTML = `<p class="err">${esc(dbErr(bad.error))}</p>`; return; }
+
+  const done = c.case_status === "Resolved";
+  box.innerHTML = `
+    <div class="dhead"><h2>Case #${c.case_id} · ${esc(c.case_title)}</h2><span class="chip ${tone(c.case_priority)}">${esc(c.case_priority)}</span><span class="chip">${esc(c.case_status)}</span></div>
+    <p class="muted">${esc(c.case_description || "No description.")} · Assigned to ${esc(userName(c.assigned_to))} · Opened ${fmtTime(c.created_at)}</p>
+    <div class="dgrid"><div>
+      <h3>Related transactions</h3>${(ct.data || []).map((x) => { const t = x.transactions; return `<div class="item"><b>Txn ${x.transaction_id}</b> · ${t ? money(t.amount) : "–"}<small>${t ? `${esc(acctLabel(t.source_account_id))} → ${esc(acctLabel(t.destination_account_id))} · ${esc(t.transaction_type)} · ${esc(t.transaction_status)}` : ""} · ${esc(x.relationship_type || "")}</small></div>`; }).join("") || '<p class="muted">None linked.</p>'}
+      <h3>Rules triggered</h3>${(rules.data || []).map((m) => `<div class="item">${esc(m.fraud_rules?.rule_name ?? "Rule")} <b>+${m.fraud_rules?.risk_points ?? "?"}</b><small>Txn ${m.transaction_id}${m.observed_value != null ? ` · observed ${esc(m.observed_value)}` : ""}</small></div>`).join("") || '<p class="muted">No rule matches recorded.</p>'}
+      <h3>Resolution</h3>${done ? `<div class="item"><b>${esc(c.resolution_outcome)}</b><small>${esc(c.resolution_notes || "")} · ${fmtTime(c.resolved_at)}</small></div>` : `
+      <div class="iform"><select id="resOutcome"><option>Fraudulent</option><option>Legitimate</option></select><textarea id="resNotes" rows="2" placeholder="Resolution notes"></textarea><button class="btn dark mini" id="resBtn">Resolve case</button></div>`}
+    </div><div>
+      <h3>Notes</h3><div class="iform"><textarea id="noteText" rows="2" placeholder="Add a note or finding"></textarea><button class="btn dark mini" id="noteBtn">Save note</button></div>
+      ${(notes.data || []).map((n) => `<div class="item">${esc(n.note_text)}<small>${esc(n.users?.full_name ?? "")} · ${fmtTime(n.created_at)}</small></div>`).join("") || '<p class="muted">No notes yet.</p>'}
+      <h3>Evidence</h3><div class="iform"><input id="evTitle" maxlength="150" placeholder="Evidence title"><textarea id="evDesc" rows="2" placeholder="Description (optional)"></textarea><input id="evFile" type="file"><button class="btn dark mini" id="evBtn">Save evidence</button></div>
+      ${(ev.data || []).map((x) => `<div class="item"><b>${esc(x.evidence_title)}</b> ${x.file_path ? `<button class="link" data-file="${esc(x.file_path)}">Open file</button>` : ""}<small>${esc(x.evidence_description || "")} ${esc(x.users?.full_name ?? "")} · ${fmtTime(x.created_at)}</small></div>`).join("") || '<p class="muted">No evidence yet.</p>'}
+    </div></div>`;
+
+  const uid = () => { const v = $("actor").value; if (!v) toast("Choose a user in Working as first.", true); return v; };
+  $("noteBtn").onclick = async () => {
+    const text = $("noteText").value.trim(), u = uid(); if (!u) return; if (!text) return toast("Write a note first.", true);
+    const { error } = await sb.from("investigation_notes").insert({ case_id: id, user_id: u, note_text: text });
+    if (error) return toast(dbErr(error), true); toast("Note saved"); loadDetail();
+  };
+  $("evBtn").onclick = async () => {
+    const title = $("evTitle").value.trim(), u = uid(); if (!u) return; if (!title) return toast("Give the evidence a title.", true);
+    let path = null; const f = $("evFile").files[0];
+    if (f) {
+      path = `${id}/${Date.now()}-${f.name.replace(/[^\w.\-]/g, "_")}`;
+      const up = await sb.storage.from("evidence").upload(path, f);
+      if (up.error) return toast("File upload failed: " + up.error.message + ". Create a Storage bucket named evidence.", true);
+    }
+    const { error } = await sb.from("case_evidence").insert({ case_id: id, uploaded_by: u, evidence_title: title, evidence_description: $("evDesc").value.trim() || null, file_path: path });
+    if (error) return toast(dbErr(error), true); toast("Evidence saved"); loadDetail();
+  };
+  if (!done) $("resBtn").onclick = async () => {
+    const outcome = $("resOutcome").value;
+    const { error } = await sb.from("investigation_cases").update({ case_status: "Resolved", resolution_outcome: outcome, resolution_notes: $("resNotes").value.trim() || null, resolved_at: new Date().toISOString() }).eq("case_id", id);
+    if (error) return toast(dbErr(error), true);
+    await sb.from("fraud_alerts").update({ alert_status: outcome === "Fraudulent" ? "Confirmed fraud" : "Closed" }).eq("case_id", id);
+    toast("Case resolved"); loadAll();
+  };
+}
+$("caseDetail").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-file]"); if (!b) return;
+  const { data, error } = await sb.storage.from("evidence").createSignedUrl(b.dataset.file, 120);
+  if (error) return toast(error.message, true); window.open(data.signedUrl, "_blank");
 });
 
 /* ---------- boot ---------- */
