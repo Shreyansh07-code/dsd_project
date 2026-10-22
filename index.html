@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fraud Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="logo"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 2l7 12H5zM5 14l7 8 7-8" fill="#22232a"/></svg><span>Fraud<br>Watch</span></div>
+    <nav class="pill" aria-label="Views">
+      <button class="nav active" data-view="home" aria-label="Dashboard" title="Dashboard"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></button>
+      <button class="nav" data-view="accounts" aria-label="Customers and accounts" title="Customers &amp; accounts"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/></svg></button>
+      <button class="nav" data-view="alerts" aria-label="Alerts" title="Alerts"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg><i id="alertDot" class="ping" hidden></i></button>
+    </nav>
+    <nav class="pill">
+      <button class="nav" id="openSettings" aria-label="Connection" title="Connection"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+    </nav>
+    <span id="connDot" class="dot" title="Connection status"></span>
+  </aside>
+
+  <main>
+    <header class="hello">
+      <div><h1>Hi, Analyst!</h1><p id="sub">Let's take a look at today's transactions</p></div>
+      <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="search" placeholder="Search transactions" aria-label="Search transactions"></label>
+      <button class="btn dark" id="newTx">New transaction</button>
+    </header>
+
+    <!-- DASHBOARD -->
+    <section id="view-home" class="view active">
+      <div class="row2">
+        <article class="card tan">
+          <h2>Today's Screening<br>Results</h2>
+          <div class="bubbles" id="bubbles"></div>
+          <ul class="legend">
+            <li><i class="sw y"></i><span id="lgVol">Total volume</span></li>
+            <li><i class="sw c"></i><span id="lgFlag">Flagged volume</span></li>
+            <li><i class="sw d"></i><span>Alerts raised</span></li>
+          </ul>
+        </article>
+        <article class="card dark">
+          <div class="chead"><h2>Transaction Days</h2><span id="calMonth"></span></div>
+          <div class="cal" id="cal"></div>
+          <ul class="cal-key"><li><i class="k y"></i>Has transactions</li><li><i class="k c"></i>Flagged</li><li><i class="k t"></i>Today</li></ul>
+        </article>
+      </div>
+
+      <div class="row3">
+        <div class="stack">
+          <article class="card gauge">
+            <div><h2>Latest Risk Score</h2><p class="muted" id="gaugeNote">Keep it under 25</p><button class="link" id="newTx2">Score another <b>+</b></button></div>
+            <div class="ring"><svg viewBox="0 0 120 120"><circle class="gt" cx="60" cy="60" r="50"/><circle class="gv" id="gaugeVal" cx="60" cy="60" r="50"/></svg><div class="gnum"><small>out of</small><b id="gaugeNum">–</b><small>100</small></div></div>
+          </article>
+          <article class="card">
+            <div class="chead"><h2>Alerts Reviewed</h2><b class="pct" id="pct">0%</b></div>
+            <div class="bar"><i id="barFill"></i></div>
+            <div class="bar-labels"><span id="barOpen">0 open</span><span id="barTotal">0 total</span></div>
+          </article>
+        </div>
+        <article class="card">
+          <div class="chead"><h2>Recent Transactions</h2><button class="btn round" id="refresh" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5"/></svg></button></div>
+          <ul class="list" id="txList"><li class="empty">Connect to Supabase to load transactions.</li></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ACCOUNTS -->
+    <section id="view-accounts" class="view">
+      <div class="row2 even">
+        <form id="custForm" class="card" novalidate>
+          <h2>Add customer</h2>
+          <div class="field"><label for="cName">Full name</label><input id="cName" maxlength="100" required></div>
+          <div class="two"><div class="field"><label for="cEmail">Email (optional)</label><input id="cEmail" type="email" maxlength="150"></div>
+          <div class="field"><label for="cPhone">Phone (optional)</label><input id="cPhone" maxlength="20"></div></div>
+          <div class="field"><label for="cAddress">Address (optional)</label><textarea id="cAddress" rows="2"></textarea></div>
+          <p class="err" id="custError" role="alert"></p>
+          <button class="btn dark" type="submit">Save customer</button>
+        </form>
+        <form id="acctForm" class="card" novalidate>
+          <h2>Open account</h2>
+          <div class="field"><label for="aCustomer">Customer</label><select id="aCustomer"></select></div>
+          <div class="field"><label for="aNumber">Account number</label><input id="aNumber" maxlength="30" required></div>
+          <div class="two"><div class="field"><label for="aType">Type</label><select id="aType"><option>Savings</option><option>Checking</option><option>Business</option><option>Credit</option></select></div>
+          <div class="field"><label for="aStatus">Status</label><select id="aStatus"><option>Active</option><option>Frozen</option><option>Closed</option></select></div></div>
+          <p class="err" id="acctError" role="alert"></p>
+          <button class="btn dark" type="submit">Open account</button>
+        </form>
+      </div>
+      <article class="card"><h2>Accounts</h2>
+        <div class="tw"><table><thead><tr><th>ID</th><th>Account number</th><th>Customer</th><th>Type</th><th>Status</th></tr></thead><tbody id="acctBody"></tbody></table></div>
+      </article>
+    </section>
+
+    <!-- ALERTS -->
+    <section id="view-alerts" class="view">
+      <article class="card"><h2>Fraud alerts</h2>
+        <div class="tw"><table><thead><tr><th>Alert</th><th>Created</th><th>Txn</th><th class="num">Amount</th><th>Priority</th><th>Status</th><th>Case</th><th>Message</th></tr></thead><tbody id="alertBody"></tbody></table></div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<!-- New transaction -->
+<dialog id="txDlg">
+  <form id="txForm" novalidate>
+    <h2>New transaction</h2>
+    <div class="two"><div class="field"><label for="txSource">From account</label><select id="txSource"></select></div>
+    <div class="field"><label for="txDest">To account</label><select id="txDest"></select></div></div>
+    <div class="two"><div class="field"><label for="txAmount">Amount</label><input id="txAmount" type="number" step="0.01" min="0.01" placeholder="0.00"></div>
+    <div class="field"><label for="txType">Type</label><select id="txType"><option>Transfer</option><option>Payment</option><option>Withdrawal</option><option>Deposit</option><option>Wire</option><option>Card</option></select></div></div>
+    <div class="two"><div class="field"><label for="txTime">Date and time</label><input id="txTime" type="datetime-local"></div>
+    <div class="field"><label for="txStatus">Status</label><select id="txStatus"><option>Completed</option><option>Pending</option><option>Failed</option><option>Reversed</option></select></div></div>
+    <div class="field"><label for="txDesc">Description (optional)</label><textarea id="txDesc" rows="2"></textarea></div>
+    <p class="err" id="txError" role="alert"></p>
+    <div class="dlg-act"><button type="button" class="btn ghost" data-close="txDlg">Cancel</button><button class="btn dark" type="submit" id="txSubmit">Submit and score</button></div>
+  </form>
+</dialog>
+
+<!-- Result -->
+<dialog id="resultDlg"><div id="resultBody"></div><div class="dlg-act"><button class="btn dark" data-close="resultDlg">Done</button></div></dialog>
+
+<!-- Connection -->
+<dialog id="settings">
+  <form method="dialog" id="settingsForm">
+    <h2>Supabase connection</h2>
+    <p class="muted">Find both in Supabase under Project Settings → API. Saved in this browser only.</p>
+    <div class="field"><label for="sbUrl">Project URL</label><input id="sbUrl" placeholder="https://xxxx.supabase.co" required></div>
+    <div class="field"><label for="sbKey">Anon public key</label><input id="sbKey" placeholder="eyJ..." required></div>
+    <div class="dlg-act"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn dark" value="save">Connect</button></div>
+  </form>
+</dialog>
+<div id="toast" class="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
