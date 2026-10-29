@@ -19,6 +19,11 @@
       <button class="nav" data-view="alerts" aria-label="Alerts" title="Alerts"><svg viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg><i id="alertDot" class="ping" hidden></i></button>
       <button class="nav" data-view="cases" aria-label="Investigations" title="Investigations"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
     </nav>
+    <nav class="pill" aria-label="Analysis">
+      <button class="nav" data-view="analytics" aria-label="Transaction analytics" title="Transaction analytics"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>
+      <button class="nav" data-view="network" aria-label="Fraud network" title="Fraud network"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7l8 1M7.5 8l3 8M16.5 10.5l-3 5.5"/></svg></button>
+      <button class="nav" data-view="audit" aria-label="Audit history" title="Audit history"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/></svg></button>
+    </nav>
     <nav class="pill">
       <button class="nav" id="openSettings" aria-label="Connection" title="Connection"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
     </nav>
@@ -111,6 +116,46 @@
         <article class="card"><div class="chead"><h2>Investigation cases</h2><span class="muted" id="caseCount"></span></div><ul class="queue" id="caseList"></ul></article>
       </div>
       <article class="card" id="caseDetail" hidden></article>
+    </section>
+    <!-- ANALYTICS -->
+    <section id="view-analytics" class="view">
+      <div class="actor"><label for="anRange">Period</label>
+        <select id="anRange"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="0">All loaded</option></select>
+        <span class="muted">Based on the latest 500 transactions</span></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="row2">
+        <article class="card"><div class="chead"><h2>Daily volume</h2><span class="muted">Tan = total · coral = flagged</span></div><div class="chart" id="chDaily"></div></article>
+        <article class="card"><h2>Risk breakdown</h2><div id="chRisk"></div></article>
+      </div>
+      <div class="row2 even">
+        <article class="card"><div class="chead"><h2>By transaction type</h2><span class="muted">Coral = flagged</span></div><div id="chType"></div></article>
+        <article class="card"><h2>Most triggered rules</h2><div id="chRules"></div></article>
+      </div>
+      <article class="card"><h2>Accounts to watch</h2>
+        <div class="tw"><table><thead><tr><th>Account</th><th>Customer</th><th class="num">Transactions</th><th class="num">Volume</th><th class="num">Flagged</th></tr></thead><tbody id="watchBody"></tbody></table></div></article>
+    </section>
+
+    <!-- NETWORK -->
+    <section id="view-network" class="view">
+      <div class="actor"><label><input type="checkbox" id="netFlagged"> Flagged transactions only</label><span class="muted" id="netStats"></span><span class="muted">Drag accounts · hover to focus · click for details</span></div>
+      <div class="netgrid">
+        <article class="card net">
+          <svg id="netSvg" class="netsvg" viewBox="0 0 900 560" role="img" aria-label="Account network graph"></svg>
+          <ul class="cal-key netkey"><li><i class="k c"></i>Account tied to a flagged transaction</li><li><i class="k tn"></i>Other account</li><li>Red links carry flagged transactions · thickness = amount</li></ul>
+        </article>
+        <div class="stack">
+          <article class="card"><h2>Patterns detected</h2><ul class="queue" id="patterns"></ul></article>
+          <article class="card" id="nodeInfo"></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- AUDIT -->
+    <section id="view-audit" class="view">
+      <div class="actor"><label for="auEntity">Entity</label><select id="auEntity"></select><label for="auAction">Action</label><select id="auAction"></select>
+        <input id="auSearch" type="search" placeholder="Search id or user" aria-label="Search audit log"><span class="muted" id="auCount"></span></div>
+      <article class="card"><h2>Audit history</h2>
+        <div class="tw"><table><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Changes</th></tr></thead><tbody id="auBody"></tbody></table></div></article>
     </section>
   </main>
 </div>
